@@ -1,0 +1,19 @@
+# Testing
+/test-results/
+/playwright-report/
+/playwright/.auth/
+/coverage/
+
+# Next.js
+/.next/
+/out/
+
+# Dependencies
+/node_modules
+
+# Environment
+.env*.local
+
+# Misc
+.DS_Store
+*.pem

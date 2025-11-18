@@ -1,0 +1,62 @@
+version: '3.9'
+
+# Development-only override
+services:
+  # Development Next.js with hot reload
+  web-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: biolab-web-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://biolab:biolab_dev_password@postgres:5432/biolab
+      - REDIS_URL=redis://:redis_dev_password@redis:6379
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=dev-secret-key-min-32-chars-long-for-development
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - biolab-network
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    command: pnpm dev
+
+  # PgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: biolab-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@biolab.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - postgres
+    networks:
+      - biolab-network
+    profiles:
+      - dev
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: biolab-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:redis_dev_password
+    depends_on:
+      - redis
+    networks:
+      - biolab-network
+    profiles:
+      - dev

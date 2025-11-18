@@ -4,6 +4,9 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@biolab/auth";
 import { prisma } from "@biolab/database";
 import superjson from "superjson";
+import { onError } from "./middleware/trpc-error-logger";
+import { requestLoggerMiddleware } from "./middleware/request-logger";
+import { AuthenticationError, toTRPCError } from "./middleware/error-handler";
 
 export async function createContext(opts?: CreateNextContextOptions) {
   const session = await getServerSession(authOptions);
@@ -18,14 +21,24 @@ type Context = Awaited<ReturnType<typeof createContext>>;
 
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
+  errorFormatter({ shape, error }) {
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        // Add custom error metadata if needed
+      },
+    };
+  },
 });
 
 export const router = t.router;
-export const publicProcedure = t.procedure;
+export const middleware = t.middleware;
+export const publicProcedure = t.procedure.use(requestLoggerMiddleware);
 
 const isAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw toTRPCError(new AuthenticationError());
   }
   return next({
     ctx: {
@@ -34,7 +47,9 @@ const isAuthed = t.middleware(({ ctx, next }) => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(isAuthed);
+export const protectedProcedure = t.procedure
+  .use(requestLoggerMiddleware)
+  .use(isAuthed);
 
 // Routers
 import { clientRouter } from "./routers/client";

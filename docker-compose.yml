@@ -1,0 +1,99 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: biolab-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: biolab
+      POSTGRES_PASSWORD: biolab_dev_password
+      POSTGRES_DB: biolab
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biolab"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - biolab-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: biolab-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass redis_dev_password
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - biolab-network
+
+  # Next.js Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: biolab-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://biolab:biolab_dev_password@postgres:5432/biolab
+      - REDIS_URL=redis://:redis_dev_password@redis:6379
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - biolab-network
+    volumes:
+      - ./packages/database/prisma:/app/packages/database/prisma
+
+  # Prisma Studio (Development only)
+  prisma-studio:
+    image: node:18-alpine
+    container_name: biolab-prisma-studio
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    working_dir: /app
+    command: npx prisma studio --port 5555 --browser none
+    environment:
+      - DATABASE_URL=postgresql://biolab:biolab_dev_password@postgres:5432/biolab
+    depends_on:
+      - postgres
+    volumes:
+      - ./packages/database/prisma:/app/prisma
+      - ./packages/database/node_modules:/app/node_modules
+    networks:
+      - biolab-network
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  biolab-network:
+    driver: bridge
