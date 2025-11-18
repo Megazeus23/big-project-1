@@ -4,7 +4,7 @@ import { signOut } from "next-auth/react";
 import { Button } from "@biolab/ui/components/button";
 import { Bell, LogOut, User } from "lucide-react";
 
-export function Header({ user }: { user: any }) {
+export function Header({ user }: { user: { name?: string | null } | null | undefined }) {
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between">

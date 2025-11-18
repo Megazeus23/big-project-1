@@ -45,8 +45,14 @@ function TaskColumn({
   color,
 }: {
   title: string;
-  tasks: any[];
-  icon: any;
+  tasks: Array<{
+    id: string;
+    title: string;
+    description?: string | null;
+    priority?: string;
+    assignedTo?: { name?: string | null } | null;
+  }>;
+  icon: React.ComponentType<{ className?: string }>;
   color: string;
 }) {
   return (

@@ -1,5 +1,4 @@
 import { initTRPC, TRPCError } from "@trpc/server";
-import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@biolab/auth";
 import { prisma } from "@biolab/database";
@@ -8,7 +7,7 @@ import { onError } from "./middleware/trpc-error-logger";
 import { requestLoggerMiddleware } from "./middleware/request-logger";
 import { AuthenticationError, toTRPCError } from "./middleware/error-handler";
 
-export async function createContext(opts?: CreateNextContextOptions) {
+export async function createContext(opts?: any) {
   const session = await getServerSession(authOptions);
 
   return {

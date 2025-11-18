@@ -48,8 +48,8 @@ function generateMetrics(): string {
   );
 
   // Event loop lag (if available)
-  if (typeof performance !== 'undefined' && performance.eventLoopUtilization) {
-    const elu = performance.eventLoopUtilization();
+  if (typeof performance !== 'undefined' && 'eventLoopUtilization' in performance) {
+    const elu = (performance as any).eventLoopUtilization();
     metrics.push(
       '# HELP nodejs_eventloop_utilization Event loop utilization',
       '# TYPE nodejs_eventloop_utilization gauge',

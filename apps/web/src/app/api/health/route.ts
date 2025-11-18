@@ -6,7 +6,6 @@ import { prisma } from '@biolab/database';
  * GET /api/health
  */
 export async function GET() {
-  const startTime = Date.now();
   const health: {
     status: 'healthy' | 'degraded' | 'unhealthy';
     timestamp: string;

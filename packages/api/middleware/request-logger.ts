@@ -21,7 +21,7 @@ export const requestLoggerMiddleware = middleware(async ({ ctx, next, path, type
   logRequest({
     method: type,
     path,
-    userId: ctx.session?.user?.id,
+    userId: (ctx.session?.user as any)?.id,
     duration,
     statusCode: result.ok ? 200 : 500,
   });
@@ -32,7 +32,7 @@ export const requestLoggerMiddleware = middleware(async ({ ctx, next, path, type
       operation: `${type}:${path}`,
       duration,
       metadata: {
-        userId: ctx.session?.user?.id,
+        userId: (ctx.session?.user as any)?.id,
       },
     });
   }

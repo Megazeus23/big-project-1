@@ -87,7 +87,7 @@ function StatsCard({
 }: {
   title: string;
   value: number;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   trend: string;
 }) {
   return (
