@@ -1,0 +1,35 @@
+{
+  "name": "biolab-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise management platform for BioLab Consulting - Organic certification services in Alto Adige/South Tyrol",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "type-check": "turbo run type-check",
+    "db:generate": "turbo run db:generate",
+    "db:push": "turbo run db:push",
+    "db:seed": "turbo run db:seed",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@turbo/gen": "^1.11.2",
+    "eslint": "^8.55.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "turbo": "^1.11.2"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

@@ -1,0 +1,666 @@
+// This is your Prisma schema file for BioLab Platform
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= USER & AUTH =============
+enum Role {
+  ADMIN
+  CONSULTANT
+  CLIENT
+  MANAGER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  role          Role      @default(CLIENT)
+  image         String?
+  emailVerified DateTime?
+  locale        String    @default("it")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  clients       Client[]       @relation("ConsultantClients")
+  assignedTasks Task[]         @relation("AssignedTo")
+  createdTasks  Task[]         @relation("CreatedBy")
+  timesheets    Timesheet[]
+  notes         Note[]
+  activities    Activity[]
+  messages      Message[]
+  notifications Notification[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============= CRM =============
+enum ClientStatus {
+  LEAD
+  PROSPECT
+  ACTIVE
+  INACTIVE
+  CHURNED
+}
+
+enum CertificationType {
+  ORGANIC_CROP
+  ORGANIC_LIVESTOCK
+  ORGANIC_PROCESSING
+  BIODYNAMIC
+  EU_BIO
+  DEMETER
+  BIOSUISSE
+}
+
+model Client {
+  id                  String            @id @default(cuid())
+  companyName         String
+  vatNumber           String?           @unique
+  fiscalCode          String?
+  contactPerson       String
+  email               String
+  phone               String?
+  mobile              String?
+  address             String?
+  city                String?
+  province            String?
+  postalCode          String?
+  region              String            @default("Trentino-Alto Adige")
+  country             String            @default("IT")
+
+  status              ClientStatus      @default(LEAD)
+  certificationTypes  CertificationType[]
+  hectares            Float?
+  crops               String[]
+  animals             String[]
+
+  leadSource          String?
+  leadScore           Int               @default(0)
+  tags                String[]
+  notes               String?           @db.Text
+  website             String?
+
+  consultantId        String?
+  consultant          User?             @relation("ConsultantClients", fields: [consultantId], references: [id])
+
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  lastContactDate     DateTime?
+  nextFollowUpDate    DateTime?
+
+  documents           Document[]
+  quotes              Quote[]
+  contracts           Contract[]
+  inspections         Inspection[]
+  timesheets          Timesheet[]
+  invoices            Invoice[]
+  activities          Activity[]
+  certifications      Certification[]
+  messages            Message[]
+
+  @@index([email])
+  @@index([status])
+  @@index([consultantId])
+  @@map("clients")
+}
+
+model Certification {
+  id                String              @id @default(cuid())
+  clientId          String
+  client            Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  type              CertificationType
+  certifyingBody    String
+  certNumber        String?
+  status            String              @default("in_progress")
+
+  applicationDate   DateTime?
+  inspectionDate    DateTime?
+  issueDate         DateTime?
+  expiryDate        DateTime?
+  renewalDate       DateTime?
+
+  documents         Document[]
+  inspections       Inspection[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([clientId])
+  @@index([expiryDate])
+  @@map("certifications")
+}
+
+// ============= PIPELINE & TASKS =============
+enum PipelineStage {
+  LEAD
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CONTRACT
+  ONBOARDING
+  ACTIVE
+  RENEWAL
+  LOST
+}
+
+model Pipeline {
+  id          String        @id @default(cuid())
+  name        String
+  stage       PipelineStage
+  value       Float?
+  probability Int           @default(50)
+  clientId    String
+  closeDate   DateTime?
+  notes       String?       @db.Text
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([stage])
+  @@map("pipelines")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?      @db.Text
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+
+  assignedToId String?
+  assignedTo   User?       @relation("AssignedTo", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User        @relation("CreatedBy", fields: [createdById], references: [id])
+
+  dueDate     DateTime?
+  completedAt DateTime?
+  tags        String[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([assignedToId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// ============= DOCUMENTS =============
+enum DocumentType {
+  CONTRACT
+  CERTIFICATE
+  INSPECTION_REPORT
+  TECHNICAL_DOC
+  INVOICE
+  APPLICATION_FORM
+  COMPLIANCE_DOC
+  PHOTO
+  OTHER
+}
+
+model Document {
+  id              String        @id @default(cuid())
+  name            String
+  originalName    String
+  type            DocumentType
+  mimeType        String
+  size            Int
+  url             String
+  path            String
+
+  clientId        String?
+  client          Client?       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  certificationId String?
+  certification   Certification? @relation(fields: [certificationId], references: [id])
+
+  folderId        String?
+  folder          Folder?       @relation(fields: [folderId], references: [id])
+
+  version         Int           @default(1)
+  parentId        String?
+  parent          Document?     @relation("DocumentVersions", fields: [parentId], references: [id])
+  versions        Document[]    @relation("DocumentVersions")
+
+  ocrText         String?       @db.Text
+  extractedData   Json?
+  tags            String[]
+  expiryDate      DateTime?
+
+  uploadedById    String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([type])
+  @@index([expiryDate])
+  @@map("documents")
+}
+
+model Folder {
+  id        String     @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Folder?    @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children  Folder[]   @relation("FolderHierarchy")
+  documents Document[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("folders")
+}
+
+// ============= QUOTES & CONTRACTS =============
+enum QuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  quoteNumber     String      @unique
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  status          QuoteStatus @default(DRAFT)
+  title           String
+  description     String?     @db.Text
+
+  items           QuoteItem[]
+  subtotal        Float
+  tax             Float
+  discount        Float       @default(0)
+  total           Float
+
+  validUntil      DateTime
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  acceptedAt      DateTime?
+
+  notes           String?     @db.Text
+  terms           String?     @db.Text
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  total       Float
+
+  @@map("quote_items")
+}
+
+model Contract {
+  id              String   @id @default(cuid())
+  contractNumber  String   @unique
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  title           String
+  description     String?  @db.Text
+  value           Float
+
+  startDate       DateTime
+  endDate         DateTime?
+  renewalDate     DateTime?
+
+  signed          Boolean  @default(false)
+  signedAt        DateTime?
+  signatureUrl    String?
+
+  terms           String?  @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([clientId])
+  @@map("contracts")
+}
+
+// ============= INSPECTIONS =============
+model Inspection {
+  id                String         @id @default(cuid())
+  clientId          String
+  client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  certificationId   String?
+  certification     Certification? @relation(fields: [certificationId], references: [id])
+
+  scheduledDate     DateTime
+  completedDate     DateTime?
+
+  inspectorId       String?
+  location          String?
+  latitude          Float?
+  longitude         Float?
+
+  checklist         Json?
+  findings          String?        @db.Text
+  photos            String[]
+  audioNotes        String[]
+
+  reportGenerated   Boolean        @default(false)
+  reportUrl         String?
+
+  status            String         @default("scheduled")
+
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([clientId])
+  @@index([scheduledDate])
+  @@map("inspections")
+}
+
+// ============= TIMESHEET & INVOICING =============
+model Timesheet {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+
+  date        DateTime
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Float?   // in hours
+
+  description String?  @db.Text
+  category    String?
+  billable    Boolean  @default(true)
+  hourlyRate  Float?
+  amount      Float?
+
+  invoiceId   String?
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([date])
+  @@map("timesheets")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  status        InvoiceStatus @default(DRAFT)
+
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  paidDate      DateTime?
+
+  items         InvoiceItem[]
+  timesheets    Timesheet[]
+
+  subtotal      Float
+  tax           Float
+  total         Float
+
+  notes         String?       @db.Text
+  xmlData       String?       @db.Text
+  pdfUrl        String?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  tax         Float   @default(22)
+  total       Float
+
+  @@map("invoice_items")
+}
+
+// ============= MESSAGING & NOTIFICATIONS =============
+model Message {
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+
+  senderId    String
+  sender      User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+
+  read        Boolean  @default(false)
+  readAt      DateTime?
+
+  attachments String[]
+
+  createdAt   DateTime @default(now())
+
+  @@index([senderId])
+  @@index([clientId])
+  @@map("messages")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title     String
+  message   String   @db.Text
+  type      String
+  link      String?
+
+  read      Boolean  @default(false)
+  readAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
+
+// ============= KNOWLEDGE BASE =============
+model Article {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  excerpt     String?
+
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+
+  tags        String[]
+  locale      String   @default("it")
+
+  published   Boolean  @default(false)
+  publishedAt DateTime?
+
+  views       Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+  @@index([published])
+  @@map("articles")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  icon        String?
+
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+
+  articles    Article[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("categories")
+}
+
+// ============= ACTIVITY LOG =============
+model Activity {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+
+  type        String
+  action      String
+  description String?  @db.Text
+  metadata    Json?
+
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([type])
+  @@map("activities")
+}
+
+// ============= NOTES =============
+model Note {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  entityType String?
+  entityId   String?
+
+  tags      String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("notes")
+}
+
+// ============= SETTINGS =============
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
